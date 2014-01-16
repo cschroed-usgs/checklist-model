@@ -39,6 +39,23 @@ angular.module('checklist-model', [])
       }
     }
   }  
+    /*
+     * It kills me to write this as O(N^2), when it could be O(Nlog(N)), but I 
+     * don't see another solution that: 
+     *   1. Avoids modifying the objects in the arrays (adding hashCode methods or id properties)
+     *   2. Avoids serializing objects. The objects could contain cyclic references, which are difficult and expensive to serialize.
+     */
+    
+    function itemsRemovedFromOldSource (newSource, oldSource) {
+        var itemsRemovedFromOldSource = [];
+        for(var i = 0; i < oldSource.length; i++){
+            var oldSourceItem = oldSource[i];
+            if(-1 === newSource.indexOf(oldSourceItem)){
+                itemsRemovedFromOldSource.push(oldSourceItem);
+            }
+        }
+        return itemsRemovedFromOldSource;
+    }
 
   return {
     restrict: 'A',
@@ -50,6 +67,9 @@ angular.module('checklist-model', [])
 
       if (!attrs.checklistValue) {
         throw 'You should provide  `checklist-value`.';
+      }
+      if (!attrs.checklistModelSource) {
+        throw 'You should provide  `checklist-model-source`.';
       }
 
       // link to original model. Initially assigned in $watch
@@ -75,11 +95,16 @@ angular.module('checklist-model', [])
         }
       });
 
-      // watch element destroy to remove from model
-      elem.bind('$destroy', function() {
-        remove(model, value);
-      });      
-
+      //watch for changes in the source options
+      scope.$parent.$watch(attrs.checklistModelSource, function(newArr, oldArr){
+          //find out if items were removed from the source options
+          //if so, remove the newly-invalid options from any selection the user
+          //has made
+          var itemsRemoved = itemsRemovedFromOldSource(newArr, oldArr);
+          for(var i = 0; i < itemsRemoved.length; i++){
+              remove(model, value);
+          }
+      });
       // watch model change
       scope.$parent.$watch(attrs.checklistModel, function(newArr, oldArr) {
         // need this line to keep link with original model
